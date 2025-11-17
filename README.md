@@ -479,8 +479,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🔗 Related Projects
 
 - [combine-files](https://github.com/cumulus13/combine_files) - Python version with rich formatting
-- [file-merger](https://github.com/example/file-merger) - Another file combination tool
-- [code-concatenator](https://github.com/example/code-concatenator) - CLI code combiner
 
 ---
 
