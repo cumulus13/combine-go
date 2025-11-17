@@ -16,3 +16,6 @@ traceback.log
 __pycache__/
 *.log
 backup/
+
+# Added entries (1 items)
+*sublime*
