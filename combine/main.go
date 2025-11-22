@@ -15,9 +15,15 @@ import (
 )
 
 const (
-	VERSION        = "2.2.0"
+	// VERSION        = "2.2.0"
 	MAX_FILE_SIZE  = 100 * 1024 * 1024 // 100MB
 	BUFFER_SIZE    = 8192
+)
+
+var (
+	Version = "unknown"
+	Author  = "Hadi Cahyadi <cumulus13@gmail.com>"
+	Repo    = "https://github.com/cumulus13/combine-go"
 )
 
 // CommentStyle defines how to format comments for different file types
@@ -138,6 +144,42 @@ var textExtensions = map[string]bool{
 	".scm": true, ".scala": true, ".erl": true, ".ex": true, ".exs": true,
 	".dockerfile": true, ".gitignore": true, ".env": true, ".editorconfig": true,
 	".rst": true, ".adoc": true, ".textile": true, ".org": true,
+}
+
+func init() {
+	Version = readVersion()
+}
+
+func readVersion() string {
+	// Coba __version__.py
+	if content, err := os.ReadFile("__version__.py"); err == nil {
+		scanner := bufio.NewScanner(bytes.NewReader(content))
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			// Cari: version = "X.Y.Z" atau __version__ = "X.Y.Z"
+			if strings.Contains(line, "=") {
+				parts := strings.SplitN(line, "=", 2)
+				key := strings.TrimSpace(parts[0])
+				val := strings.TrimSpace(parts[1])
+				val = strings.Trim(val, "'\" ")
+				if key == "version" || key == "__version__" {
+					return val
+				}
+			}
+		}
+	}
+
+	// Coba VERSION
+	if content, err := os.ReadFile("VERSION"); err == nil {
+		return strings.TrimSpace(string(content))
+	}
+
+	// Coba VERSION.txt
+	if content, err := os.ReadFile("VERSION.txt"); err == nil {
+		return strings.TrimSpace(string(content))
+	}
+
+	return "unknown"
 }
 
 func main() {
@@ -595,13 +637,18 @@ func parseFlags() *Config {
 			config.IgnoreGitignore = true
 		case "--dry-run":
 			config.DryRun = true
-		case "-v", "--verbose":
+		case "--verbose":
 			config.Verbose = true
 		case "--debug":
 			config.Debug = true
 			config.Verbose = true
-		case "--version", "-V":
-			fmt.Printf("combine v%s\n", VERSION)
+		// case "--version", "-V":
+		// 	fmt.Printf("combine v%s\n", VERSION)
+		// 	os.Exit(0)
+		case "-v", "--version":
+			fmt.Printf("combine version %s\n", Version)
+			fmt.Printf("Author: %s\n", Author)
+			fmt.Printf("Repo: %s\n", Repo)
 			os.Exit(0)
 		case "-h", "--help":
 			printUsage()
@@ -648,6 +695,7 @@ func parseFlags() *Config {
 }
 
 func printUsage() {
+	VERSION := readVersion()
 	fmt.Fprintf(os.Stderr, "combine v%s - Combine files matching patterns\n\n", VERSION)
 	fmt.Fprintf(os.Stderr, "Usage:\n")
 	fmt.Fprintf(os.Stderr, "  combine [FILES/PATTERNS...] -o OUTPUT [OPTIONS]\n")
@@ -658,16 +706,16 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  combine -p \"*.go,go.mod\" -o golang.txt\n\n")
 	fmt.Fprintf(os.Stderr, "Options:\n")
 	fmt.Fprintf(os.Stderr, "  -o FILE                 Output file (required)\n")
-	fmt.Fprintf(os.Stderr, "  -p \"pat1,pat2\"         Patterns (comma-separated)\n")
-	fmt.Fprintf(os.Stderr, "  -e \"pat1,pat2\"         Exclude patterns\n")
+	fmt.Fprintf(os.Stderr, "  -p \"pat1,pat2\"          Patterns (comma-separated)\n")
+	fmt.Fprintf(os.Stderr, "  -e \"pat1,pat2\"          Exclude patterns\n")
 	fmt.Fprintf(os.Stderr, "  --root DIR              Search root (default: .)\n")
 	fmt.Fprintf(os.Stderr, "  --max-size BYTES        Max file size (default: 100MB)\n")
 	fmt.Fprintf(os.Stderr, "  --no-separator          Skip file separators\n")
 	fmt.Fprintf(os.Stderr, "  --ignore-gitignore      Skip .gitignore\n")
 	fmt.Fprintf(os.Stderr, "  --dry-run               Show what would be combined\n")
-	fmt.Fprintf(os.Stderr, "  -v                      Verbose output\n")
+	fmt.Fprintf(os.Stderr, "  --verbose               Verbose output\n")
 	fmt.Fprintf(os.Stderr, "  --debug                 Debug mode\n")
-	fmt.Fprintf(os.Stderr, "  --version               Show version\n")
+	fmt.Fprintf(os.Stderr, "  -v --version            Show version\n")
 	fmt.Fprintf(os.Stderr, "  -h                      Show help\n")
 }
 
