@@ -3,7 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"flag"
+	// "flag"
 	"fmt"
 	"io"
 	"os"
@@ -11,10 +11,11 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"strconv"
 )
 
 const (
-	VERSION        = "2.1.0"
+	VERSION        = "2.2.0"
 	MAX_FILE_SIZE  = 100 * 1024 * 1024 // 100MB
 	BUFFER_SIZE    = 8192
 )
@@ -196,69 +197,478 @@ func main() {
 	os.Exit(exitCode)
 }
 
+// func parseFlags() *Config {
+// 	config := &Config{}
+
+// 	var patterns string
+// 	var excludes string
+
+// 	flag.StringVar(&patterns, "p", "", "Glob patterns (comma-separated), e.g., \"*.py,*.txt\"")
+// 	flag.StringVar(&config.Output, "o", "", "Output file path (required)")
+// 	flag.StringVar(&excludes, "e", "", "Exclude patterns (comma-separated)")
+// 	flag.StringVar(&config.Root, "root", ".", "Root directory to search")
+// 	flag.BoolVar(&config.NoSeparator, "no-separator", false, "Don't add separators between files")
+// 	flag.StringVar(&config.Encoding, "encoding", "utf-8", "Output file encoding")
+// 	flag.StringVar(&config.NewlineType, "newline", "lf", "Newline type: lf, crlf, cr")
+// 	flag.Int64Var(&config.MaxSize, "max-size", MAX_FILE_SIZE, "Maximum file size in bytes")
+// 	flag.BoolVar(&config.IgnoreGitignore, "ignore-gitignore", false, "Don't read .gitignore")
+// 	flag.BoolVar(&config.DryRun, "dry-run", false, "Preview without writing")
+// 	flag.BoolVar(&config.Verbose, "v", false, "Verbose output")
+// 	flag.BoolVar(&config.Debug, "debug", false, "Debug mode")
+
+// 	version := flag.Bool("version", false, "Show version")
+
+// 	// Custom usage
+// 	flag.Usage = func() {
+// 		fmt.Fprintf(os.Stderr, "combine v%s - Combine multiple files matching patterns\n\n", VERSION)
+// 		fmt.Fprintf(os.Stderr, "Usage:\n")
+// 		fmt.Fprintf(os.Stderr, "  combine [patterns] -o output.txt [options]\n\n")
+// 		fmt.Fprintf(os.Stderr, "Examples:\n")
+// 		fmt.Fprintf(os.Stderr, "  combine *.py *.txt -o combined.txt\n")
+// 		fmt.Fprintf(os.Stderr, "  combine -p \"*.go,*.mod\" -o golang.txt\n")
+// 		fmt.Fprintf(os.Stderr, "  combine src/**/*.cpp -o output.cpp\n")
+// 		fmt.Fprintf(os.Stderr, "  combine \"*.md\" README LICENSE -o docs.txt\n\n")
+// 		fmt.Fprintf(os.Stderr, "Options:\n")
+// 		flag.PrintDefaults()
+// 	}
+
+// 	flag.Parse()
+
+// 	if *version {
+// 		fmt.Printf("combine v%s\n", VERSION)
+// 		os.Exit(0)
+// 	}
+
+// 	// Parse -p glob patterns
+// 	if patterns != "" {
+// 		parts := strings.Split(patterns, ",")
+// 		for _, p := range parts {
+// 			p = strings.TrimSpace(p)
+// 			if p != "" {
+// 				config.Patterns = append(config.Patterns, p)
+// 			}
+// 		}
+// 	}
+
+// 	// Add positional args as patterns
+// 	positional := flag.Args()
+// 	for _, arg := range positional {
+// 		arg = strings.TrimSpace(arg)
+// 		if arg != "" {
+// 			config.Patterns = append(config.Patterns, arg)
+// 		}
+// 	}
+
+// 	// Validate: must have patterns
+// 	if len(config.Patterns) == 0 {
+// 		fmt.Fprintln(os.Stderr, "Error: No patterns supplied.")
+// 		flag.Usage()
+// 		os.Exit(1)
+// 	}
+
+// 	// Validate output
+// 	if config.Output == "" {
+// 		fmt.Fprintln(os.Stderr, "Error: Output file (-o) is required.")
+// 		flag.Usage()
+// 		os.Exit(1)
+// 	}
+
+// 	// Parse excludes
+// 	if excludes != "" {
+// 		parts := strings.Split(excludes, ",")
+// 		for _, p := range parts {
+// 			p = strings.TrimSpace(p)
+// 			if p != "" {
+// 				config.Excludes = append(config.Excludes, p)
+// 			}
+// 		}
+// 	}
+
+// 	// Normalize newline type
+// 	config.NewlineType = strings.ToLower(config.NewlineType)
+
+// 	return config
+// }
+
+// func parseFlags() *Config {
+// 	config := &Config{}
+
+// 	var patternsStr string
+// 	var excludesStr string
+
+// 	flag.StringVar(&patternsStr, "p", "", "Glob patterns (comma-separated), e.g., \"*.py,*.txt\"")
+// 	flag.StringVar(&config.Output, "o", "", "Output file path (required)")
+// 	flag.StringVar(&excludesStr, "e", "", "Exclude patterns (comma-separated)")
+// 	flag.StringVar(&config.Root, "root", ".", "Root directory to search")
+// 	flag.BoolVar(&config.NoSeparator, "no-separator", false, "Don't add separators between files")
+// 	flag.StringVar(&config.Encoding, "encoding", "utf-8", "Output file encoding (default: utf-8)")
+// 	flag.StringVar(&config.NewlineType, "newline", "lf", "Newline type: lf, crlf, cr")
+// 	flag.Int64Var(&config.MaxSize, "max-size", MAX_FILE_SIZE, "Maximum file size in bytes")
+// 	flag.BoolVar(&config.IgnoreGitignore, "ignore-gitignore", false, "Don't read .gitignore")
+// 	flag.BoolVar(&config.DryRun, "dry-run", false, "Preview without writing")
+// 	flag.BoolVar(&config.Verbose, "v", false, "Verbose output")
+// 	flag.BoolVar(&config.Debug, "debug", false, "Debug mode (implies verbose)")
+
+// 	version := flag.Bool("version", false, "Show version")
+
+// 	flag.Usage = func() {
+// 		fmt.Fprintf(os.Stderr, "combine v%s - Combine multiple files matching patterns\n\n", VERSION)
+// 		fmt.Fprintf(os.Stderr, "Usage:\n")
+// 		fmt.Fprintf(os.Stderr, "  combine -o OUTPUT [OPTIONS] [PATTERN/FILE...]\n\n")
+// 		fmt.Fprintf(os.Stderr, "Examples:\n")
+// 		fmt.Fprintf(os.Stderr, "  combine -o combined.txt *.py *.txt\n")
+// 		fmt.Fprintf(os.Stderr, "  combine -o golang.txt -p \"*.go,*.mod\"\n")
+// 		fmt.Fprintf(os.Stderr, "  combine -o output.cpp src/**/*.cpp\n")
+// 		fmt.Fprintf(os.Stderr, "  combine -o docs.txt \"*.md\" README LICENSE\n\n")
+// 		fmt.Fprintf(os.Stderr, "Options:\n")
+// 		flag.PrintDefaults()
+// 	}
+
+// 	flag.Parse()
+
+// 	if *version {
+// 		fmt.Printf("combine v%s\n", VERSION)
+// 		os.Exit(0)
+// 	}
+
+// 	// Get positional args (after flags)
+// 	positional := flag.Args()
+// 	if patternsStr != "" {
+// 		parts := strings.Split(patternsStr, ",")
+// 		for _, p := range parts {
+// 			p = strings.TrimSpace(p)
+// 			if p != "" {
+// 				config.Patterns = append(config.Patterns, p)
+// 			}
+// 		}
+// 	}
+
+// 	// Add positional args (e.g., *.md, *.py, README.md)
+// 	for _, arg := range positional {
+// 		arg = strings.TrimSpace(arg)
+// 		if arg != "" {
+// 			config.Patterns = append(config.Patterns, arg)
+// 		}
+// 	}
+
+// 	if config.Output == "" {
+// 		fmt.Fprintln(os.Stderr, "Error: -o OUTPUT is required")
+// 		flag.Usage()
+// 		os.Exit(1)
+// 	}
+
+// 	if len(config.Patterns) == 0 {
+// 		fmt.Fprintln(os.Stderr, "Error: no file patterns provided")
+// 		flag.Usage()
+// 		os.Exit(1)
+// 	}
+
+// 	if excludesStr != "" {
+// 		parts := strings.Split(excludesStr, ",")
+// 		for _, p := range parts {
+// 			p = strings.TrimSpace(p)
+// 			if p != "" {
+// 				config.Excludes = append(config.Excludes, p)
+// 			}
+// 		}
+// 	}
+
+// 	if config.Debug {
+// 		config.Verbose = true
+// 	}
+
+// 	return config
+// }
+
+// =====================================================================
+// func parseFlags() *Config {
+// 	if len(os.Args) == 1 {
+// 		fmt.Fprintln(os.Stderr, "Error: No arguments provided.")
+// 		showUsage()
+// 		os.Exit(1)
+// 	}
+
+// 	config := &Config{
+// 		Root:        ".",
+// 		Encoding:    "utf-8",
+// 		NewlineType: "lf",
+// 		MaxSize:     MAX_FILE_SIZE,
+// 	}
+
+// 	outputFile := ""
+// 	excludesStr := ""
+// 	var patterns []string
+
+// 	// Scan all args to find flags anywhere
+// 	for i := 1; i < len(os.Args); i++ {
+// 		arg := os.Args[i]
+// 		switch arg {
+// 		case "-o", "--output":
+// 			if i+1 >= len(os.Args) {
+// 				fmt.Fprintln(os.Stderr, "Error: -o requires a filename")
+// 				os.Exit(1)
+// 			}
+// 			outputFile = os.Args[i+1]
+// 			i++ // skip next arg
+// 		case "-e", "--exclude":
+// 			if i+1 >= len(os.Args) {
+// 				fmt.Fprintln(os.Stderr, "Error: -e requires patterns")
+// 				os.Exit(1)
+// 			}
+// 			excludesStr = os.Args[i+1]
+// 			i++
+// 		case "--root":
+// 			if i+1 >= len(os.Args) {
+// 				fmt.Fprintln(os.Stderr, "Error: --root requires a path")
+// 				os.Exit(1)
+// 			}
+// 			config.Root = os.Args[i+1]
+// 			i++
+// 		case "--encoding":
+// 			if i+1 >= len(os.Args) {
+// 				fmt.Fprintln(os.Stderr, "Error: --encoding requires a value")
+// 				os.Exit(1)
+// 			}
+// 			config.Encoding = os.Args[i+1]
+// 			i++
+// 		case "--newline":
+// 			if i+1 >= len(os.Args) {
+// 				fmt.Fprintln(os.Stderr, "Error: --newline requires a value")
+// 				os.Exit(1)
+// 			}
+// 			config.NewlineType = os.Args[i+1]
+// 			i++
+// 		case "--max-size":
+// 			if i+1 >= len(os.Args) {
+// 				fmt.Fprintln(os.Stderr, "Error: --max-size requires a value")
+// 				os.Exit(1)
+// 			}
+// 			val, err := strconv.ParseInt(os.Args[i+1], 10, 64)
+// 			if err != nil {
+// 				fmt.Fprintf(os.Stderr, "Error: invalid --max-size value: %v\n", err)
+// 				os.Exit(1)
+// 			}
+// 			config.MaxSize = val
+// 			i++
+// 		case "--ignore-gitignore":
+// 			config.IgnoreGitignore = true
+// 		case "--dry-run":
+// 			config.DryRun = true
+// 		case "-v", "--verbose":
+// 			config.Verbose = true
+// 		case "--debug":
+// 			config.Debug = true
+// 			config.Verbose = true
+// 		case "--no-separator":
+// 			config.NoSeparator = true
+// 		case "--version", "-V":
+// 			fmt.Printf("combine v%s\n", VERSION)
+// 			os.Exit(0)
+// 		case "-h", "--help":
+// 			showUsage()
+// 			os.Exit(0)
+// 		default:
+// 			// It's a pattern/file
+// 			patterns = append(patterns, arg)
+// 		}
+// 	}
+
+// 	// Assign after parsing
+// 	config.Output = outputFile
+// 	config.Patterns = patterns
+
+// 	// Parse excludes
+// 	if excludesStr != "" {
+// 		for _, p := range strings.Split(excludesStr, ",") {
+// 			p = strings.TrimSpace(p)
+// 			if p != "" {
+// 				config.Excludes = append(config.Excludes, p)
+// 			}
+// 		}
+// 	}
+
+// 	// Validation
+// 	if config.Output == "" {
+// 		fmt.Fprintln(os.Stderr, "Error: -o OUTPUT is required")
+// 		showUsage()
+// 		os.Exit(1)
+// 	}
+// 	if len(config.Patterns) == 0 {
+// 		fmt.Fprintln(os.Stderr, "Error: no file patterns provided")
+// 		showUsage()
+// 		os.Exit(1)
+// 	}
+
+// 	return config
+// }
+
+// func showUsage() {
+// 	fmt.Fprintf(os.Stderr, "combine v%s - Combine multiple files matching patterns\n\n", VERSION)
+// 	fmt.Fprintf(os.Stderr, "Usage:\n")
+// 	fmt.Fprintf(os.Stderr, "  combine [PATTERN/FILE...] -o OUTPUT [OPTIONS]\n\n")
+// 	fmt.Fprintf(os.Stderr, "Examples:\n")
+// 	fmt.Fprintf(os.Stderr, "  combine *.py *.txt -o combined.txt\n")
+// 	fmt.Fprintf(os.Stderr, "  combine README.md LICENSE -o docs.txt\n")
+// 	fmt.Fprintf(os.Stderr, "  combine -p \"*.go,*.mod\" -o golang.txt\n\n")
+// 	fmt.Fprintf(os.Stderr, "Options:\n")
+// 	fmt.Fprintf(os.Stderr, "  -o, --output FILE        Output file path (required)\n")
+// 	fmt.Fprintf(os.Stderr, "  -e, --exclude PATTERNS   Exclude patterns (comma-separated)\n")
+// 	fmt.Fprintf(os.Stderr, "  --root DIR               Root directory (default: .)\n")
+// 	fmt.Fprintf(os.Stderr, "  --no-separator           Don't add separators between files\n")
+// 	fmt.Fprintf(os.Stderr, "  --encoding ENC           Output encoding (default: utf-8)\n")
+// 	fmt.Fprintf(os.Stderr, "  --newline TYPE           Newline: lf, crlf, cr (default: lf)\n")
+// 	fmt.Fprintf(os.Stderr, "  --max-size BYTES         Max file size (default: 100MB)\n")
+// 	fmt.Fprintf(os.Stderr, "  --ignore-gitignore       Don't read .gitignore\n")
+// 	fmt.Fprintf(os.Stderr, "  --dry-run                Preview without writing\n")
+// 	fmt.Fprintf(os.Stderr, "  -v, --verbose            Verbose output\n")
+// 	fmt.Fprintf(os.Stderr, "  --debug                  Debug mode\n")
+// 	fmt.Fprintf(os.Stderr, "  --version                Show version\n")
+// 	fmt.Fprintf(os.Stderr, "  -h, --help               Show this help\n")
+// }
+// =====================================================================
+
 func parseFlags() *Config {
-	config := &Config{}
-
-	var patterns string
-	var excludes string
-
-	flag.StringVar(&patterns, "p", "", "Glob patterns (comma-separated), e.g., \"*.py,*.txt\"")
-	flag.StringVar(&config.Output, "o", "", "Output file path (required)")
-	flag.StringVar(&excludes, "e", "", "Exclude patterns (comma-separated)")
-	flag.StringVar(&config.Root, "root", ".", "Root directory to search")
-	flag.BoolVar(&config.NoSeparator, "no-separator", false, "Don't add separators between files")
-	flag.StringVar(&config.Encoding, "encoding", "utf-8", "Output file encoding")
-	flag.StringVar(&config.NewlineType, "newline", "lf", "Newline type: lf, crlf, cr")
-	flag.Int64Var(&config.MaxSize, "max-size", MAX_FILE_SIZE, "Maximum file size in bytes")
-	flag.BoolVar(&config.IgnoreGitignore, "ignore-gitignore", false, "Don't read .gitignore")
-	flag.BoolVar(&config.DryRun, "dry-run", false, "Preview without writing")
-	flag.BoolVar(&config.Verbose, "v", false, "Verbose output")
-	flag.BoolVar(&config.Debug, "debug", false, "Debug mode")
-
-	version := flag.Bool("version", false, "Show version")
-
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "combine v%s - Combine multiple files matching glob patterns\n\n", VERSION)
-		fmt.Fprintf(os.Stderr, "Usage: combine -p PATTERNS -o OUTPUT [options]\n\n")
-		fmt.Fprintf(os.Stderr, "Options:\n")
-		flag.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\nExamples:\n")
-		fmt.Fprintf(os.Stderr, "  combine -p \"*.py\" -o combined.py\n")
-		fmt.Fprintf(os.Stderr, "  combine -p \"*.go,*.mod\" -o project.txt\n")
-		fmt.Fprintf(os.Stderr, "  combine -p \"**/*.js\" -o bundle.js -e \"node_modules,dist\"\n")
-		fmt.Fprintf(os.Stderr, "  combine -p \"src/**/*.cpp\" -o output.cpp --dry-run\n")
-	}
-
-	flag.Parse()
-
-	if *version {
-		fmt.Printf("combine v%s\n", VERSION)
-		os.Exit(0)
-	}
-
-	if patterns == "" || config.Output == "" {
-		flag.Usage()
+	args := os.Args[1:]
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "Error: No arguments provided")
+		printUsage()
 		os.Exit(1)
 	}
 
-	// Parse patterns
-	config.Patterns = strings.Split(patterns, ",")
-	for i := range config.Patterns {
-		config.Patterns[i] = strings.TrimSpace(config.Patterns[i])
+	config := &Config{
+		Root:        ".",
+		Encoding:    "utf-8",
+		NewlineType: "lf",
+		MaxSize:     MAX_FILE_SIZE,
 	}
 
-	// Parse excludes
-	if excludes != "" {
-		config.Excludes = strings.Split(excludes, ",")
-		for i := range config.Excludes {
-			config.Excludes[i] = strings.TrimSpace(config.Excludes[i])
+	var patternsFromP string
+	var excludesFromE string
+	var i int
+
+	for i = 0; i < len(args); i++ {
+		arg := args[i]
+		switch arg {
+		case "-o", "--output":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "Error: -o requires a filename")
+				os.Exit(1)
+			}
+			config.Output = args[i+1]
+			i++
+		case "-p":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "Error: -p requires a pattern string")
+				os.Exit(1)
+			}
+			patternsFromP = args[i+1]
+			i++
+		case "-e", "--exclude":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "Error: -e requires patterns")
+				os.Exit(1)
+			}
+			excludesFromE = args[i+1]
+			i++
+		case "--root":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "Error: --root requires a path")
+				os.Exit(1)
+			}
+			config.Root = args[i+1]
+			i++
+		case "--max-size":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "Error: --max-size requires a number")
+				os.Exit(1)
+			}
+			val, err := strconv.ParseInt(args[i+1], 10, 64)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: invalid --max-size: %v\n", err)
+				os.Exit(1)
+			}
+			config.MaxSize = val
+			i++
+		case "--no-separator":
+			config.NoSeparator = true
+		case "--ignore-gitignore":
+			config.IgnoreGitignore = true
+		case "--dry-run":
+			config.DryRun = true
+		case "-v", "--verbose":
+			config.Verbose = true
+		case "--debug":
+			config.Debug = true
+			config.Verbose = true
+		case "--version", "-V":
+			fmt.Printf("combine v%s\n", VERSION)
+			os.Exit(0)
+		case "-h", "--help":
+			printUsage()
+			os.Exit(0)
+		default:
+			// Assume it's a file pattern
+			config.Patterns = append(config.Patterns, arg)
 		}
 	}
 
-	// Validate newline type
-	config.NewlineType = strings.ToLower(config.NewlineType)
+	// Add patterns from -p
+	if patternsFromP != "" {
+		for _, p := range strings.Split(patternsFromP, ",") {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				config.Patterns = append(config.Patterns, p)
+			}
+		}
+	}
+
+	// Parse excludes
+	if excludesFromE != "" {
+		for _, p := range strings.Split(excludesFromE, ",") {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				config.Excludes = append(config.Excludes, p)
+			}
+		}
+	}
+
+	// Final validation
+	if config.Output == "" {
+		fmt.Fprintln(os.Stderr, "Error: -o OUTPUT is required")
+		printUsage()
+		os.Exit(1)
+	}
+	if len(config.Patterns) == 0 {
+		fmt.Fprintln(os.Stderr, "Error: no file patterns provided")
+		printUsage()
+		os.Exit(1)
+	}
 
 	return config
+}
+
+func printUsage() {
+	fmt.Fprintf(os.Stderr, "combine v%s - Combine files matching patterns\n\n", VERSION)
+	fmt.Fprintf(os.Stderr, "Usage:\n")
+	fmt.Fprintf(os.Stderr, "  combine [FILES/PATTERNS...] -o OUTPUT [OPTIONS]\n")
+	fmt.Fprintf(os.Stderr, "  combine -p \"*.md,*.py\" -o OUTPUT [OPTIONS]\n\n")
+	fmt.Fprintf(os.Stderr, "Examples:\n")
+	fmt.Fprintf(os.Stderr, "  combine *.md *.py -o dotenv.txt\n")
+	fmt.Fprintf(os.Stderr, "  combine README.md setup.py -o out.txt\n")
+	fmt.Fprintf(os.Stderr, "  combine -p \"*.go,go.mod\" -o golang.txt\n\n")
+	fmt.Fprintf(os.Stderr, "Options:\n")
+	fmt.Fprintf(os.Stderr, "  -o FILE                 Output file (required)\n")
+	fmt.Fprintf(os.Stderr, "  -p \"pat1,pat2\"         Patterns (comma-separated)\n")
+	fmt.Fprintf(os.Stderr, "  -e \"pat1,pat2\"         Exclude patterns\n")
+	fmt.Fprintf(os.Stderr, "  --root DIR              Search root (default: .)\n")
+	fmt.Fprintf(os.Stderr, "  --max-size BYTES        Max file size (default: 100MB)\n")
+	fmt.Fprintf(os.Stderr, "  --no-separator          Skip file separators\n")
+	fmt.Fprintf(os.Stderr, "  --ignore-gitignore      Skip .gitignore\n")
+	fmt.Fprintf(os.Stderr, "  --dry-run               Show what would be combined\n")
+	fmt.Fprintf(os.Stderr, "  -v                      Verbose output\n")
+	fmt.Fprintf(os.Stderr, "  --debug                 Debug mode\n")
+	fmt.Fprintf(os.Stderr, "  --version               Show version\n")
+	fmt.Fprintf(os.Stderr, "  -h                      Show help\n")
 }
 
 func loadGitignore(root string, verbose bool) []string {
@@ -371,75 +781,146 @@ func isBinaryFile(path string) bool {
 	return ratio > 0.3
 }
 
+// func findFiles(root string, patterns []string, excludes []string, maxSize int64, verbose bool) ([]string, []FileInfo) {
+// 	allFiles := make(map[string]bool)
+// 	var skipped []FileInfo
+
+// 	// Collect files from all patterns
+// 	for _, pattern := range patterns {
+// 		matches, err := filepath.Glob(filepath.Join(root, pattern))
+// 		if err == nil {
+// 			for _, match := range matches {
+// 				allFiles[match] = true
+// 			}
+// 		}
+
+// 		// Also support recursive patterns
+// 		err = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+// 			if err != nil {
+// 				return nil
+// 			}
+// 			if info.IsDir() {
+// 				return nil
+// 			}
+
+// 			matched, _ := filepath.Match(pattern, filepath.Base(path))
+// 			if matched {
+// 				allFiles[path] = true
+// 			}
+
+// 			return nil
+// 		})
+// 	}
+
+// 	// Convert to sorted slice
+// 	var files []string
+// 	for file := range allFiles {
+// 		files = append(files, file)
+// 	}
+// 	sort.Strings(files)
+
+// 	// Filter and validate
+// 	var results []string
+// 	for _, file := range files {
+// 		info, err := os.Stat(file)
+// 		if err != nil {
+// 			skipped = append(skipped, FileInfo{file, fmt.Sprintf("Cannot stat: %v", err)})
+// 			continue
+// 		}
+
+// 		if !info.Mode().IsRegular() {
+// 			continue
+// 		}
+
+// 		// Check exclusions
+// 		if matchExcluded(file, root, excludes) {
+// 			skipped = append(skipped, FileInfo{file, "Matched exclusion pattern"})
+// 			continue
+// 		}
+
+// 		// Check file size
+// 		if info.Size() > maxSize {
+// 			skipped = append(skipped, FileInfo{file, fmt.Sprintf("Too large (%.1f MB)", float64(info.Size())/1024/1024)})
+// 			continue
+// 		}
+
+// 		// Check if binary
+// 		if isBinaryFile(file) {
+// 			skipped = append(skipped, FileInfo{file, "Binary file"})
+// 			continue
+// 		}
+
+// 		results = append(results, file)
+// 	}
+
+// 	return results, skipped
+// }
+
 func findFiles(root string, patterns []string, excludes []string, maxSize int64, verbose bool) ([]string, []FileInfo) {
 	allFiles := make(map[string]bool)
 	var skipped []FileInfo
 
-	// Collect files from all patterns
 	for _, pattern := range patterns {
+		// Try glob relative to root
 		matches, err := filepath.Glob(filepath.Join(root, pattern))
-		if err == nil {
-			for _, match := range matches {
-				allFiles[match] = true
-			}
+		if err != nil {
+			skipped = append(skipped, FileInfo{Path: pattern, Reason: fmt.Sprintf("Invalid pattern: %v", err)})
+			continue
 		}
 
-		// Also support recursive patterns
-		err = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return nil
+		if len(matches) == 0 {
+			// Maybe it's an absolute path or literal file?
+			if info, err := os.Stat(pattern); err == nil && !info.IsDir() {
+				allFiles[pattern] = true
+				continue
 			}
-			if info.IsDir() {
-				return nil
+			// Or relative to root
+			absPath := filepath.Join(root, pattern)
+			if info, err := os.Stat(absPath); err == nil && !info.IsDir() {
+				allFiles[absPath] = true
+				continue
 			}
+			// Otherwise, skip (no match)
+			if verbose {
+				fmt.Printf("No matches for pattern: %s\n", pattern)
+			}
+			continue
+		}
 
-			matched, _ := filepath.Match(pattern, filepath.Base(path))
-			if matched {
-				allFiles[path] = true
-			}
-
-			return nil
-		})
+		for _, m := range matches {
+			allFiles[m] = true
+		}
 	}
 
-	// Convert to sorted slice
-	var files []string
-	for file := range allFiles {
-		files = append(files, file)
+	files := make([]string, 0, len(allFiles))
+	for f := range allFiles {
+		files = append(files, f)
 	}
 	sort.Strings(files)
 
-	// Filter and validate
+	// Filter valid text files
 	var results []string
 	for _, file := range files {
 		info, err := os.Stat(file)
 		if err != nil {
-			skipped = append(skipped, FileInfo{file, fmt.Sprintf("Cannot stat: %v", err)})
+			skipped = append(skipped, FileInfo{file, fmt.Sprintf("Stat error: %v", err)})
 			continue
 		}
-
 		if !info.Mode().IsRegular() {
 			continue
 		}
-
-		// Check exclusions
 		if matchExcluded(file, root, excludes) {
-			skipped = append(skipped, FileInfo{file, "Matched exclusion pattern"})
+			skipped = append(skipped, FileInfo{file, "Excluded"})
 			continue
 		}
-
-		// Check file size
 		if info.Size() > maxSize {
 			skipped = append(skipped, FileInfo{file, fmt.Sprintf("Too large (%.1f MB)", float64(info.Size())/1024/1024)})
 			continue
 		}
-
-		// Check if binary
 		if isBinaryFile(file) {
 			skipped = append(skipped, FileInfo{file, "Binary file"})
 			continue
 		}
-
 		results = append(results, file)
 	}
 

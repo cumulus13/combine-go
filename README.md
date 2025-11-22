@@ -81,12 +81,24 @@ GOOS=darwin GOARCH=arm64 go build -o combine-mac-arm64 main.go
 ```bash
 # Combine all Python files
 combine -p "*.py" -o combined.py
+combine -o combined.py -p "*.py"
+combine -p *.py -o combined.py
+combine -o combined.py -p *.py
+combine *.py -o combined.py
+combine -o combined.py *.py
 
 # Multiple patterns
 combine -p "*.go,*.mod,go.sum" -o project.txt
+combine -o project.txt -p "*.go,*.mod,go.sum"
+combine -p *.go *.mod go .sum -o project.txt
+combine -o project.txt -p *.go *.mod go .sum
+combine *.go *.mod go .sum -o project.txt
+combine -o project.txt *.go *.mod go .sum
 
 # Recursive patterns
 combine -p "**/*.js" -o bundle.js
+combine -p **/*.js -o bundle.js
+combine **/*.js -o bundle.js
 
 # Exclude directories
 combine -p "**/*.js" -o bundle.js -e "node_modules,dist,backup"
@@ -97,21 +109,27 @@ combine -p "**/*.js" -o bundle.js -e "node_modules,dist,backup"
 ```bash
 # Dry run to preview
 combine -p "src/**/*.cpp" -o output.cpp --dry-run
+combine src/**/*.cpp -o output.cpp --dry-run
 
 # Verbose output
 combine -p "*.py" -o combined.py -v
+combine *.py -o combined.py -v
 
 # No separator comments
 combine -p "*.txt" -o merged.txt --no-separator
+combine *.txt -o merged.txt --no-separator
 
 # Custom file size limit (50MB)
 combine -p "*.log" -o all-logs.txt --max-size 52428800
+combine *.log -o all-logs.txt --max-size 52428800
 
 # Different newline format
 combine -p "*.bat" -o script.bat --newline crlf
+combine *.bat -o script.bat --newline crlf
 
 # Ignore .gitignore
 combine -p "*.js" -o all.js --ignore-gitignore
+combine *.js -o all.js --ignore-gitignore
 ```
 
 ## 📖 Usage Examples
@@ -120,30 +138,35 @@ combine -p "*.js" -o all.js --ignore-gitignore
 
 ```bash
 combine -p "*.js,*.jsx,*.json" -o PROJECT.txt -e "node_modules,dist,build"
+combine *.js *.jsx *.json -o PROJECT.txt -e "node_modules,dist,build"
 ```
 
 ### Example 2: Combine Go Project
 
 ```bash
 combine -p "**/*.go,go.mod,go.sum" -o source.txt -e "vendor,.git"
+combine **/*.go go.mod go.sum -o source.txt -e "vendor,.git"
 ```
 
 ### Example 3: Combine Documentation
 
 ```bash
 combine -p "*.md,*.txt,*.rst" -o DOCS.txt
+combine *.md *.txt *.rst -o DOCS.txt
 ```
 
 ### Example 4: Combine Configuration Files
 
 ```bash
 combine -p "*.yaml,*.yml,*.toml,*.json" -o configs.txt -e ".git,node_modules"
+combine *.yaml *.yml *.toml *.json -o configs.txt -e ".git,node_modules"
 ```
 
 ### Example 5: Web Project
 
 ```bash
 combine -p "*.html,*.css,*.js" -o web-project.txt -e "node_modules,dist,.git"
+combine *.html *.css *.js -o web-project.txt -e "node_modules,dist,.git"
 ```
 
 ## 🎯 Command-Line Options

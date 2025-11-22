@@ -19,3 +19,11 @@ backup/
 
 # Added entries (1 items)
 *sublime*
+# PT backup directory
+.pt/
+
+# Added entries (1 items)
+main.go.1
+
+# Added entries (1 items)
+*.exe
