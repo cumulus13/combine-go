@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 	"strconv"
+
+	"github.com/atotto/clipboard"
 )
 
 const (
@@ -47,6 +49,7 @@ type Config struct {
 	DryRun          bool
 	Verbose         bool
 	Debug           bool
+	Recursive		bool
 }
 
 // FileInfo holds information about processed files
@@ -214,7 +217,8 @@ func main() {
 		fmt.Println("Searching for files...")
 	}
 
-	files, skipped := findFiles(config.Root, config.Patterns, allExcludes, config.MaxSize, config.Verbose)
+	// files, skipped := findFiles(config.Root, config.Patterns, allExcludes, config.MaxSize, config.Verbose)
+	files, skipped := findFiles(config.Root, config.Patterns, allExcludes, config.MaxSize, config.Verbose, config.Recursive)
 
 	// Print summary
 	printSummary(config, files, skipped)
@@ -570,7 +574,8 @@ func main() {
 // =====================================================================
 
 func parseFlags() *Config {
-	args := os.Args[1:]
+	args := os.
+	Args[1:]
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "Error: No arguments provided")
 		printUsage()
@@ -612,6 +617,8 @@ func parseFlags() *Config {
 			}
 			excludesFromE = args[i+1]
 			i++
+		case "-r", "--recursive":
+			config.Recursive = true
 		case "--root":
 			if i+1 >= len(args) {
 				fmt.Fprintln(os.Stderr, "Error: --root requires a path")
@@ -708,6 +715,7 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  -o FILE                 Output file (required)\n")
 	fmt.Fprintf(os.Stderr, "  -p \"pat1,pat2\"          Patterns (comma-separated)\n")
 	fmt.Fprintf(os.Stderr, "  -e \"pat1,pat2\"          Exclude patterns\n")
+	fmt.Fprintf(os.Stderr, "  -r, --recursive         Search recursively in subdirectories\n")
 	fmt.Fprintf(os.Stderr, "  --root DIR              Search root (default: .)\n")
 	fmt.Fprintf(os.Stderr, "  --max-size BYTES        Max file size (default: 100MB)\n")
 	fmt.Fprintf(os.Stderr, "  --no-separator          Skip file separators\n")
@@ -904,49 +912,159 @@ func isBinaryFile(path string) bool {
 // 	return results, skipped
 // }
 
-func findFiles(root string, patterns []string, excludes []string, maxSize int64, verbose bool) ([]string, []FileInfo) {
+// func findFiles(root string, patterns []string, excludes []string, maxSize int64, verbose bool) ([]string, []FileInfo) {
+// 	allFiles := make(map[string]bool)
+// 	var skipped []FileInfo
+
+// 	for _, pattern := range patterns {
+// 		// Try glob relative to root
+// 		matches, err := filepath.Glob(filepath.Join(root, pattern))
+// 		if err != nil {
+// 			skipped = append(skipped, FileInfo{Path: pattern, Reason: fmt.Sprintf("Invalid pattern: %v", err)})
+// 			continue
+// 		}
+
+// 		if len(matches) == 0 {
+// 			// Maybe it's an absolute path or literal file?
+// 			if info, err := os.Stat(pattern); err == nil && !info.IsDir() {
+// 				allFiles[pattern] = true
+// 				continue
+// 			}
+// 			// Or relative to root
+// 			absPath := filepath.Join(root, pattern)
+// 			if info, err := os.Stat(absPath); err == nil && !info.IsDir() {
+// 				allFiles[absPath] = true
+// 				continue
+// 			}
+// 			// Otherwise, skip (no match)
+// 			if verbose {
+// 				fmt.Printf("No matches for pattern: %s\n", pattern)
+// 			}
+// 			continue
+// 		}
+
+// 		for _, m := range matches {
+// 			allFiles[m] = true
+// 		}
+// 	}
+
+// 	files := make([]string, 0, len(allFiles))
+// 	for f := range allFiles {
+// 		files = append(files, f)
+// 	}
+// 	sort.Strings(files)
+
+// 	// Filter valid text files
+// 	var results []string
+// 	for _, file := range files {
+// 		info, err := os.Stat(file)
+// 		if err != nil {
+// 			skipped = append(skipped, FileInfo{file, fmt.Sprintf("Stat error: %v", err)})
+// 			continue
+// 		}
+// 		if !info.Mode().IsRegular() {
+// 			continue
+// 		}
+// 		if matchExcluded(file, root, excludes) {
+// 			skipped = append(skipped, FileInfo{file, "Excluded"})
+// 			continue
+// 		}
+// 		if info.Size() > maxSize {
+// 			skipped = append(skipped, FileInfo{file, fmt.Sprintf("Too large (%.1f MB)", float64(info.Size())/1024/1024)})
+// 			continue
+// 		}
+// 		if isBinaryFile(file) {
+// 			skipped = append(skipped, FileInfo{file, "Binary file"})
+// 			continue
+// 		}
+// 		results = append(results, file)
+// 	}
+
+// 	return results, skipped
+// }
+
+func findFiles(root string, patterns []string, excludes []string, maxSize int64, verbose bool, recursive bool) ([]string, []FileInfo) {
 	allFiles := make(map[string]bool)
 	var skipped []FileInfo
 
-	for _, pattern := range patterns {
-		// Try glob relative to root
-		matches, err := filepath.Glob(filepath.Join(root, pattern))
-		if err != nil {
-			skipped = append(skipped, FileInfo{Path: pattern, Reason: fmt.Sprintf("Invalid pattern: %v", err)})
-			continue
-		}
+	if recursive {
+		// Walk entire tree and match against base name for each pattern
+		err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			if !info.Mode().IsRegular() {
+				return nil
+			}
 
-		if len(matches) == 0 {
-			// Maybe it's an absolute path or literal file?
-			if info, err := os.Stat(pattern); err == nil && !info.IsDir() {
-				allFiles[pattern] = true
+			// Skip if excluded
+			if matchExcluded(path, root, excludes) {
+				return nil
+			}
+
+			// Check each pattern
+			base := filepath.Base(path)
+			for _, pat := range patterns {
+				// Handle absolute/literal files in patterns
+				if filepath.IsAbs(pat) || (len(pat) > 0 && pat[0] == '.') {
+					absPat, _ := filepath.Abs(pat)
+					if path == absPat {
+						allFiles[path] = true
+						return nil
+					}
+				}
+
+				// Try simple glob match on basename
+				if matched, _ := filepath.Match(pat, base); matched {
+					allFiles[path] = true
+					return nil
+				}
+			}
+			return nil
+		})
+		if err != nil && verbose {
+			fmt.Fprintf(os.Stderr, "Warning: error during recursive walk: %v\n", err)
+		}
+	} else {
+		// Non-recursive: original glob logic
+		for _, pattern := range patterns {
+			matches, err := filepath.Glob(filepath.Join(root, pattern))
+			if err != nil {
+				skipped = append(skipped, FileInfo{Path: pattern, Reason: fmt.Sprintf("Invalid pattern: %v", err)})
 				continue
 			}
-			// Or relative to root
-			absPath := filepath.Join(root, pattern)
-			if info, err := os.Stat(absPath); err == nil && !info.IsDir() {
-				allFiles[absPath] = true
+
+			if len(matches) == 0 {
+				// Check if it's a literal file
+				if info, err := os.Stat(pattern); err == nil && !info.IsDir() {
+					allFiles[pattern] = true
+					continue
+				}
+				absPath := filepath.Join(root, pattern)
+				if info, err := os.Stat(absPath); err == nil && !info.IsDir() {
+					allFiles[absPath] = true
+					continue
+				}
+				if verbose {
+					fmt.Printf("No matches for pattern: %s\n", pattern)
+				}
 				continue
 			}
-			// Otherwise, skip (no match)
-			if verbose {
-				fmt.Printf("No matches for pattern: %s\n", pattern)
-			}
-			continue
-		}
 
-		for _, m := range matches {
-			allFiles[m] = true
+			for _, m := range matches {
+				allFiles[m] = true
+			}
 		}
 	}
 
+	// Convert map to slice
 	files := make([]string, 0, len(allFiles))
 	for f := range allFiles {
 		files = append(files, f)
 	}
 	sort.Strings(files)
 
-	// Filter valid text files
+	// Final filtering: size, binary, etc.
 	var results []string
 	for _, file := range files {
 		info, err := os.Stat(file)
@@ -1019,8 +1137,88 @@ func getNewline(newlineType string) string {
 	}
 }
 
+// func combineFiles(config *Config, files []string) int {
+// 	// Remove output file from input files
+// 	absOutput, _ := filepath.Abs(config.Output)
+// 	var filteredFiles []string
+// 	for _, file := range files {
+// 		absFile, _ := filepath.Abs(file)
+// 		if absFile != absOutput {
+// 			filteredFiles = append(filteredFiles, file)
+// 		}
+// 	}
+// 	files = filteredFiles
+
+// 	if len(files) == 0 {
+// 		fmt.Fprintln(os.Stderr, "Error: No files to combine after filtering")
+// 		return 1
+// 	}
+
+// 	// Create output directory if needed
+// 	outputDir := filepath.Dir(config.Output)
+// 	if err := os.MkdirAll(outputDir, 0755); err != nil {
+// 		fmt.Fprintf(os.Stderr, "Error: Cannot create output directory: %v\n", err)
+// 		return 2
+// 	}
+
+// 	// Open output file
+// 	outFile, err := os.Create(config.Output)
+// 	if err != nil {
+// 		fmt.Fprintf(os.Stderr, "Error: Cannot create output file: %v\n", err)
+// 		return 2
+// 	}
+// 	defer outFile.Close()
+
+// 	writer := bufio.NewWriter(outFile)
+// 	defer writer.Flush()
+
+// 	newline := getNewline(config.NewlineType)
+// 	successCount := 0
+// 	errorCount := 0
+
+// 	for idx, filePath := range files {
+// 		if config.Verbose {
+// 			fmt.Printf("Processing [%d/%d]: %s\n", idx+1, len(files), filepath.Base(filePath))
+// 		}
+
+// 		// Read file
+// 		content, err := os.ReadFile(filePath)
+// 		if err != nil {
+// 			fmt.Fprintf(os.Stderr, "Warning: Skipped %s: %v\n", filePath, err)
+// 			errorCount++
+// 			continue
+// 		}
+
+// 		// Add separator
+// 		if !config.NoSeparator {
+// 			style := getCommentStyle(filePath)
+// 			separator := createSeparator(filePath, config.Root, idx+1, style)
+// 			writer.WriteString(separator)
+// 		}
+
+// 		// Write content
+// 		writer.Write(content)
+
+// 		// Ensure newline at end
+// 		if len(content) > 0 && !bytes.HasSuffix(content, []byte(newline)) {
+// 			writer.WriteString(newline)
+// 		}
+
+// 		successCount++
+// 	}
+
+// 	fmt.Println("\n" + strings.Repeat("=", 70))
+// 	fmt.Printf("SUCCESS: Combined %d files into %s\n", successCount, config.Output)
+// 	if errorCount > 0 {
+// 		fmt.Printf("WARNING: %d files were skipped due to errors\n", errorCount)
+// 	}
+// 	fmt.Println(strings.Repeat("=", 70))
+
+// 	return 0
+// }
+
 func combineFiles(config *Config, files []string) int {
-	// Remove output file from input files
+	// 1. Removes the output file from the input list
 	absOutput, _ := filepath.Abs(config.Output)
 	var filteredFiles []string
 	for _, file := range files {
@@ -1036,24 +1234,8 @@ func combineFiles(config *Config, files []string) int {
 		return 1
 	}
 
-	// Create output directory if needed
-	outputDir := filepath.Dir(config.Output)
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: Cannot create output directory: %v\n", err)
-		return 2
-	}
-
-	// Open output file
-	outFile, err := os.Create(config.Output)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: Cannot create output file: %v\n", err)
-		return 2
-	}
-	defer outFile.Close()
-
-	writer := bufio.NewWriter(outFile)
-	defer writer.Flush()
-
+	// 2. Process the content to combine
+	var combinedContent bytes.Buffer
 	newline := getNewline(config.NewlineType)
 	successCount := 0
 	errorCount := 0
@@ -1063,7 +1245,7 @@ func combineFiles(config *Config, files []string) int {
 			fmt.Printf("Processing [%d/%d]: %s\n", idx+1, len(files), filepath.Base(filePath))
 		}
 
-		// Read file
+		// Read files
 		content, err := os.ReadFile(filePath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: Skipped %s: %v\n", filePath, err)
@@ -1075,20 +1257,70 @@ func combineFiles(config *Config, files []string) int {
 		if !config.NoSeparator {
 			style := getCommentStyle(filePath)
 			separator := createSeparator(filePath, config.Root, idx+1, style)
-			writer.WriteString(separator)
+			combinedContent.WriteString(separator)
 		}
 
 		// Write content
-		writer.Write(content)
+		combinedContent.Write(content)
 
-		// Ensure newline at end
+		// Ensure newline at the end
 		if len(content) > 0 && !bytes.HasSuffix(content, []byte(newline)) {
-			writer.WriteString(newline)
+			combinedContent.WriteString(newline)
 		}
 
 		successCount++
 	}
 
+	// 3. Determine the output destination (Clipboard or File)
+	outputIsClipboard := config.Output == "c"
+
+	if outputIsClipboard {
+		// Output to Clipboard (Assuming package 'clipboard' is available)
+		// Need to import: import "github.com/atotto/clipboard"
+		err := clipboard.WriteAll(combinedContent.String()) // Use string for clipboard
+		if err != nil {
+			fmt.Println("Failed to write content to clipboard!")
+			return 2
+		} else {
+			fmt.Println("Content has been written to clipboard!")
+		}
+	} else if config.Output != "" {
+		// Output ke File
+		
+		// Create an output directory if necessary
+		outputDir := filepath.Dir(config.Output)
+		if outputDir != "." { // Cek apakah ada direktori selain direktori saat ini
+			if err := os.MkdirAll(outputDir, 0755); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: Cannot create output directory: %v\n", err)
+				return 2
+			}
+			// Maybe it doesn't need to be printed every time, but follows the original logic:
+			// fmt.Printf("%s created\n", outputDir)
+		}
+
+		// Open/Create output file
+		outFile, err := os.Create(config.Output)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: Cannot create output file: %v\n", err)
+			return 2
+		}
+		defer outFile.Close()
+
+		writer := bufio.NewWriter(outFile)
+		defer writer.Flush()
+		
+		// Writes the entire combined contents to a file
+		if _, err := writer.Write(combinedContent.Bytes()); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: Failed to write combined content to file: %v\n", err)
+			return 2
+		}
+	} else {
+        // Case when config.Output is empty and not 'c'.
+		fmt.Fprintln(os.Stderr, "Error: Output target is not defined.")
+		return 2
+	}
+
+	// 4. Statistical Output
 	fmt.Println("\n" + strings.Repeat("=", 70))
 	fmt.Printf("SUCCESS: Combined %d files into %s\n", successCount, config.Output)
 	if errorCount > 0 {
@@ -1109,7 +1341,7 @@ func printSummary(config *Config, files []string, skipped []FileInfo) {
 	fmt.Printf("Files found       : %d\n", len(files))
 	fmt.Printf("Files excluded    : %d\n", len(skipped))
 	if config.DryRun {
-		fmt.Printf("Mode              : DRY-RUN (no changes)\n")
+		fmt.Printf("Mode    	          : DRY-RUN (no changes)\n")
 	} else {
 		fmt.Printf("Mode              : EXECUTION\n")
 	}
